@@ -1,6 +1,9 @@
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::str;
+
+use itertools::Itertools;
 
 enum StatusCode {
     // 2xx Success
@@ -14,6 +17,14 @@ enum StatusCode {
 
     // 4xx Client Error
     BadRequest,
+    NotFound,
+}
+
+#[derive(Debug)]
+enum HTTPMethod {
+    Get(String),
+    Post(String),
+    Put(String),
 }
 
 impl From<StatusCode> for String {
@@ -22,40 +33,116 @@ impl From<StatusCode> for String {
         match val {
             Ok => "200 OK".to_string(),
             BadRequest => "400 Bad Request".to_string(),
+            NotFound => "404 Not Found".to_string(),
         }
     }
 }
 
-struct HTTPResponse {
-    version: String,
-    status: StatusCode,
-    headers: Option<String>,
+impl From<HTTPMethod> for String {
+    fn from(val: HTTPMethod) -> Self {
+        use HTTPMethod::*;
+        match val {
+            Get(target) => "GET".to_string() + &target,
+            Post(target) => "POST".to_string() + &target,
+            Put(target) => "PUT".to_string() + &target,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Headers(HashMap<String, String>);
+
+impl From<&[&str]> for Headers {
+    fn from(value: &[&str]) -> Self {
+        let mut header_map = HashMap::new();
+        for header in value.iter().filter(|val| !val.is_empty()) {
+            let (key, val) = header.split_once(':').expect("Should be splitable by :");
+            header_map.insert(key.to_string(), val.to_string());
+        }
+        Headers(header_map)
+    }
+}
+
+impl From<&str> for HTTPMethod {
+    fn from(val: &str) -> Self {
+        use HTTPMethod::*;
+        let request_line = val.split(' ').collect_vec();
+        let (method, target) = (request_line[0], request_line[1]);
+        match method {
+            "GET" => Get(target.to_string()),
+            "POST" => Post(target.to_string()),
+            _ => {
+                eprintln!("{method} Not Supported Yet");
+                unreachable!()
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct Request {
+    method: HTTPMethod,
+    headers: Option<Headers>,
     body: Option<String>,
 }
 
-impl HTTPResponse {
-    fn new(
-        version: String,
-        status: StatusCode,
-        headers: Option<String>,
-        body: Option<String>,
-    ) -> Self {
-        HTTPResponse {
-            version,
-            status,
+impl Request {
+    fn new(method: HTTPMethod, headers: Headers, body: String) -> Self {
+        let headers = if headers.0.len() == 0 {
+            None
+        } else {
+            Some(headers)
+        };
+        let body = if body.is_empty() { None } else { Some(body) };
+        Request {
+            method,
             headers,
             body,
         }
     }
 }
 
-impl Into<String> for HTTPResponse {
+impl From<&str> for Request {
+    fn from(val: &str) -> Self {
+        let request: Vec<&str> = val.split("\r\n").collect();
+        match &request[..] {
+            [request_line, headers @ .., body] => {
+                let (method, headers, body) = (
+                    HTTPMethod::from(*request_line),
+                    Headers::from(headers),
+                    body.to_string(),
+                );
+                Request::new(method, headers, body)
+            }
+            _ => {
+                unreachable!();
+            }
+        }
+    }
+}
+
+struct Response {
+    version: String,
+    status: StatusCode,
+    body: Option<String>,
+}
+
+impl Response {
+    fn new(version: String, status: StatusCode, body: Option<String>) -> Self {
+        Response {
+            version,
+            status,
+            body,
+        }
+    }
+}
+
+impl Into<String> for Response {
     fn into(self) -> String {
         format!(
-            "HTTP/{} {}\r\n{}\r\n{}",
+            "HTTP/{} {}\r\n{}\r\n",
             self.version,
             String::from(self.status),
-            self.headers.unwrap_or("".to_string()),
             self.body.unwrap_or("".to_string())
         )
     }
@@ -71,19 +158,34 @@ fn handle_client(mut stream: TcpStream) {
             // Convert buffer to a string and print the received data
             if let Ok(request) = str::from_utf8(&buffer) {
                 println!("Received request: {}", request);
+                let request = Request::from(request);
+                println!("Request after parsing: {:?}", request);
+                let succses: String = Response::new("1.1".to_string(), StatusCode::Ok, None).into();
+                let succses = succses.as_bytes();
+
+                let not_found: String =
+                    Response::new("1.1".to_string(), StatusCode::NotFound, None).into();
+                let not_found = not_found.as_bytes();
+
+                match request.method {
+                    HTTPMethod::Get(target) => match target.as_str() {
+                        "/" => match stream.write(succses) {
+                            Ok(_) => println!("Response sent successfully"),
+                            Err(e) => eprintln!("Failed to send response: {}", e),
+                        },
+                        _ => match stream.write(not_found) {
+                            Ok(_) => println!("Response sent successfully"),
+                            Err(e) => eprintln!("Failed to send response: {}", e),
+                        },
+                    },
+                    HTTPMethod::Post(target) => todo!(),
+                    HTTPMethod::Put(target) => todo!(),
+                }
             }
 
             // Prepare a response
             // let response = b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nHello, world!";
-            let response: String =
-                HTTPResponse::new("1.1".to_string(), StatusCode::Ok, None, None).into();
-            let response = response.as_bytes();
-
-            // Write response to the stream
-            match stream.write(response) {
-                Ok(_) => println!("Response sent successfully"),
-                Err(e) => eprintln!("Failed to send response: {}", e),
-            }
+            //
         }
         Err(e) => {
             eprintln!("Failed to read from stream: {}", e);
