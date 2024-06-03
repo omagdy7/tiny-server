@@ -60,7 +60,9 @@ impl From<&[&str]> for Headers {
     fn from(value: &[&str]) -> Self {
         let mut header_map = HashMap::new();
         for header in value.iter().filter(|val| !val.is_empty()) {
-            let (key, val) = header.split_once(':').expect("Should be splitable by :");
+            let (key, val) = header
+                .split_once(": ")
+                .expect("Should be splitable by :<space>");
             header_map.insert(key.to_string(), val.to_string());
         }
         Headers(header_map)
@@ -217,6 +219,35 @@ fn handle_client(mut stream: TcpStream) {
                                     Ok(_) => {
                                         println!("Response sent successfully");
                                         println!("Hello echo");
+                                    }
+                                    Err(e) => eprintln!("Failed to send response: {}", e),
+                                }
+                            }
+                            ("user-agent", _) => {
+                                let mut headers = HashMap::new();
+                                let user_agent: String =
+                                    request.headers.unwrap().0.get("User-Agent").unwrap().into();
+                                headers
+                                    .insert("Content-Type".to_string(), "text/plain".to_string());
+                                headers.insert(
+                                    "Content-Length".to_string(),
+                                    user_agent.len().to_string(),
+                                );
+                                let body = user_agent;
+                                let response: String = Response::new(
+                                    "1.1".to_string(),
+                                    StatusCode::Ok,
+                                    Some(Headers(headers)),
+                                    Some(body),
+                                )
+                                .into();
+                                dbg!(&response);
+                                let response = response.as_bytes();
+
+                                match stream.write(response) {
+                                    Ok(_) => {
+                                        println!("Response sent successfully");
+                                        println!("Hello user-agent");
                                     }
                                     Err(e) => eprintln!("Failed to send response: {}", e),
                                 }
