@@ -10,14 +10,25 @@ pub enum StatusCode {
     NotFound,
 }
 
-type Endpoint = String;
-type Target = String;
+type Route = String;
 
-#[derive(Debug)]
-pub enum HTTPMethod {
-    Get((Endpoint, Target)),
-    Post((Endpoint, Target)),
-    Put((Endpoint, Target)),
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum Method {
+    Get(Route),
+    Post(Route),
+    Put(Route),
+}
+
+pub fn get(route: &str) -> Method {
+    Method::Get(route.to_string())
+}
+
+pub fn post(route: &str) -> Method {
+    Method::Post(route.to_string())
+}
+
+pub fn put(route: &str) -> Method {
+    Method::Put(route.to_string())
 }
 
 impl From<StatusCode> for String {
@@ -31,19 +42,42 @@ impl From<StatusCode> for String {
     }
 }
 
-impl From<HTTPMethod> for String {
-    fn from(val: HTTPMethod) -> Self {
-        use HTTPMethod::*;
+impl From<Method> for String {
+    fn from(val: Method) -> Self {
+        use Method::*;
         match val {
-            Get((endpoint, target)) => "GET".to_string() + &endpoint + &target,
-            Post((endpoint, target)) => "POST".to_string() + &endpoint + &target,
-            Put((endpoint, target)) => "PUT".to_string() + &endpoint + &target,
+            Get(route) => "GET ".to_string() + &route,
+            Post(route) => "POST ".to_string() + &route,
+            Put(route) => "PUT ".to_string() + &route,
+        }
+    }
+}
+impl From<&Method> for String {
+    fn from(val: &Method) -> Self {
+        use Method::*;
+        match val {
+            Get(route) => "GET ".to_string() + &route,
+            Post(route) => "POST ".to_string() + &route,
+            Put(route) => "PUT ".to_string() + &route,
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Headers(pub HashMap<String, String>);
+
+impl From<Vec<String>> for Headers {
+    fn from(value: Vec<String>) -> Self {
+        let mut header_map = HashMap::new();
+        for header in value.iter().filter(|val| !val.is_empty()) {
+            let (key, val) = header
+                .split_once(": ")
+                .expect("Should be splitable by :<space>");
+            header_map.insert(key.to_string(), val.to_string());
+        }
+        Headers(header_map)
+    }
+}
 
 impl From<&[&str]> for Headers {
     fn from(value: &[&str]) -> Self {
@@ -58,16 +92,29 @@ impl From<&[&str]> for Headers {
     }
 }
 
-impl From<&str> for HTTPMethod {
-    fn from(val: &str) -> Self {
-        use HTTPMethod::*;
+impl From<String> for Method {
+    fn from(val: String) -> Self {
+        use Method::*;
         let request_line = val.split(' ').collect_vec();
-        let (method, info) = (request_line[0], request_line[1]);
-        let info = info.chars().skip(1).collect::<String>() + &"/";
-        let (endpoint, target) = info.split_once("/").expect("Should be splitable by /");
+        let (method, route) = (request_line[0], request_line[1]);
         match method {
-            "GET" => Get((endpoint.to_string(), target.to_string())),
-            "POST" => Post((endpoint.to_string(), target.to_string())),
+            "GET" => Get(route.to_string()),
+            "POST" => Post(route.to_string()),
+            _ => {
+                eprintln!("{method} Not Supported Yet");
+                unreachable!()
+            }
+        }
+    }
+}
+impl From<&str> for Method {
+    fn from(val: &str) -> Self {
+        use Method::*;
+        let request_line = val.split(' ').collect_vec();
+        let (method, route) = (request_line[0], request_line[1]);
+        match method {
+            "GET" => Get(route.to_string()),
+            "POST" => Post(route.to_string()),
             _ => {
                 eprintln!("{method} Not Supported Yet");
                 unreachable!()

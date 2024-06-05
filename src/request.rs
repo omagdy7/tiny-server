@@ -1,14 +1,16 @@
+use std::collections::HashMap;
+
 use crate::http_types::*;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Request {
-    pub method: HTTPMethod,
+    pub method: Method,
     pub headers: Option<Headers>,
     body: Option<String>,
 }
 
 impl Request {
-    fn new(method: HTTPMethod, headers: Headers, body: String) -> Self {
+    fn new(method: Method, headers: Headers, body: String) -> Self {
         let headers = if headers.0.len() == 0 {
             None
         } else {
@@ -21,23 +23,70 @@ impl Request {
             body,
         }
     }
+
+    pub fn get_tag(&self, key: String) -> String {
+        self.headers.as_ref().unwrap().0.get(&key).unwrap().clone()
+    }
+
+    pub fn method(&self) -> &Method {
+        &self.method
+    }
+
+    pub fn headers(&self) -> &Option<Headers> {
+        &self.headers
+    }
+
+    pub fn body(&self) -> &Option<String> {
+        &self.body
+    }
 }
 
-impl From<&str> for Request {
-    fn from(val: &str) -> Self {
-        let request: Vec<&str> = val.split("\r\n").collect();
-        match &request[..] {
+impl From<Vec<&str>> for Request {
+    fn from(value: Vec<&str>) -> Self {
+        match &value[..] {
             [request_line, headers @ .., body] => {
-                let (method, headers, body) = (
-                    HTTPMethod::from(*request_line),
-                    Headers::from(headers),
-                    body.to_string(),
-                );
-                Request::new(method, headers, body)
+                let (method, headers, body) =
+                    (Method::from(*request_line), Headers::from(headers), body);
+                Request::new(method, headers, (*body).to_string())
             }
             _ => {
                 unreachable!();
             }
         }
+    }
+}
+
+impl<'a> Into<String> for Request {
+    fn into(self) -> String {
+        let method = String::from(self.method);
+        let (method, endpoint) = method.split_once(" ").unwrap();
+        let status_line = format!("{} {} HTTP/1.1", method, endpoint);
+        let headers = self
+            .headers
+            .unwrap_or(Headers(HashMap::new()))
+            .0
+            .iter()
+            .map(|(key, value)| format!("{key}: {value}\r\n"))
+            .collect::<String>();
+        let body = self.body.unwrap_or("".to_string());
+        format!("{status_line}\r\n{headers}\r\n{body}")
+    }
+}
+
+impl Into<String> for &Request {
+    fn into(self) -> String {
+        let method = String::from(self.method.clone());
+        let (method, endpoint) = method.split_once(" ").unwrap();
+        let status_line = format!("{} {} HTTP/1.1", method, endpoint);
+        let headers = self
+            .headers()
+            .clone()
+            .unwrap_or(Headers(HashMap::new()))
+            .0
+            .iter()
+            .map(|(key, value)| format!("{key}: {value}\r\n"))
+            .collect::<String>();
+        let body = self.body.clone().unwrap_or("".to_string());
+        format!("{status_line}\r\n{headers}\r\n{body}")
     }
 }
