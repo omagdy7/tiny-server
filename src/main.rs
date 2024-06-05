@@ -24,7 +24,7 @@ fn handle_echo(request: &Request, ctx: Option<&HashMap<String, String>>) -> Resp
     };
 
     if let Some(encoding) = request.get_tag("Accept-Encoding") {
-        if encoding.as_str() == "gzip" {
+        if encoding.contains("gzip") {
             headers.insert("Content-Encoding".to_string(), "gzip".to_string());
         }
     }
