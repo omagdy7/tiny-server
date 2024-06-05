@@ -4,6 +4,7 @@ use std::collections::HashMap;
 pub enum StatusCode {
     // 2xx Success
     Ok,
+    Created,
 
     // 4xx Client Error
     BadRequest,
@@ -36,6 +37,7 @@ impl From<StatusCode> for String {
         use StatusCode::*;
         match val {
             Ok => "200 OK".to_string(),
+            Created => "201 Created".to_string(),
             BadRequest => "400 Bad Request".to_string(),
             NotFound => "404 Not Found".to_string(),
         }

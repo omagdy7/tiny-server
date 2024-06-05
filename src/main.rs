@@ -1,6 +1,7 @@
 #![allow(unused)]
 use http_server_starter_rust::router::Router;
 use itertools::Itertools;
+use nom::AsBytes;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Read, Write};
@@ -12,6 +13,12 @@ use std::{str, thread, usize};
 use http_server_starter_rust::request::*;
 use http_server_starter_rust::response::*;
 use http_server_starter_rust::{extractor, http_types::*};
+
+fn save_bytes_to_file(bytes: &[u8], file_path: &str) -> io::Result<()> {
+    let mut file = File::create(file_path)?;
+    file.write_all(bytes)?;
+    Ok(())
+}
 
 fn read_file_as_bytes(path: &str) -> io::Result<Vec<u8>> {
     // Open the file in read-only mode
@@ -53,6 +60,39 @@ fn handle_echo(request: &Request, ctx: Option<&HashMap<String, String>>) -> Resp
     )
 }
 
+fn handle_post_files(request: &Request, ctx: Option<&HashMap<String, String>>) -> Response {
+    // Extract the route regardless of the variant
+    let mut file = "".to_string();
+    let route = match request.method() {
+        Method::Get(route) | Method::Post(route) | Method::Put(route) => route,
+    };
+
+    let mut directory = ctx.unwrap().get(&"dir".to_string()).unwrap().clone();
+    directory.pop(); // remove last slash
+
+    for ch in route.chars().skip(1).skip_while(|&ch| ch != '/') {
+        file.push(ch);
+    }
+    if file.chars().last().unwrap() == '/' {
+        file.pop();
+    }
+    let len = file.len().to_string();
+
+    let full_path = &(directory + &file);
+    println!("post_files");
+    dbg!(full_path);
+    let bytes = request.body().as_ref().unwrap();
+    let body = bytes.as_bytes();
+
+    match save_bytes_to_file(body, full_path) {
+        Ok(bytes) => Response::new("1.1".to_string(), StatusCode::Created, None, None),
+        Err(err) => {
+            println!("Error: {err}");
+            Response::new("1.1".to_string(), StatusCode::NotFound, None, None)
+        }
+    }
+}
+
 fn handle_files(request: &Request, ctx: Option<&HashMap<String, String>>) -> Response {
     // Extract the route regardless of the variant
     let mut file = "".to_string();
@@ -72,6 +112,7 @@ fn handle_files(request: &Request, ctx: Option<&HashMap<String, String>>) -> Res
     let len = file.len().to_string();
 
     let full_path = &(directory + &file);
+    println!("handle_files");
     dbg!(full_path);
 
     match read_file_as_bytes(full_path) {
@@ -135,11 +176,10 @@ fn serve(
                     use Method::*;
                     println!("Received request:\n{}", request);
                     let request_lines: Vec<&str> = request.split("\r\n").collect();
+                    dbg!(&request_lines);
                     let request = Request::from(request_lines);
                     let request_string: String = (&request).into();
-
-                    println!("Request after parsing:\n{}", request_string);
-                    dbg!(&request.method);
+                    println!("body:\n{:?}", request.body());
 
                     let response: String = {
                         let router = router.lock().unwrap();
@@ -189,7 +229,8 @@ fn main() -> io::Result<()> {
             .route(get("/"), handle_success)
             .route(get("/echo/:var/"), handle_echo)
             .route(get("/user-agent/"), handle_user_agent)
-            .route(get("/files/:file/"), handle_files);
+            .route(get("/files/:file/"), handle_files)
+            .route(post("/files/:file/"), handle_post_files);
     }
 
     for stream in listener.incoming() {

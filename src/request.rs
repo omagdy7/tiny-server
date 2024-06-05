@@ -47,7 +47,15 @@ impl From<Vec<&str>> for Request {
             [request_line, headers @ .., body] => {
                 let (method, headers, body) =
                     (Method::from(*request_line), Headers::from(headers), body);
-                Request::new(method, headers, (*body).to_string())
+                if let Some(content_length) = headers.0.get("Content-Length") {
+                    println!("Well hello there");
+                    let content_length = content_length
+                        .parse::<usize>()
+                        .expect("Content-Length should be parsable to usize");
+                    Request::new(method, headers, (body[0..content_length]).to_string())
+                } else {
+                    Request::new(method, headers, (*body).to_string())
+                }
             }
             _ => {
                 unreachable!();

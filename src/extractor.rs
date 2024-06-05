@@ -6,7 +6,7 @@ pub fn build_regex_from_path(path_template: &str) -> Regex {
     for component in path_template.split('/') {
         if component.starts_with(':') {
             // Replace placeholder with regex to capture alphanumeric, underscores, or hyphens
-            regex_string.push_str("/([a-zA-Z0-9_-]+)");
+            regex_string.push_str("/([a-zA-Z0-9_.-]+)");
         } else if !component.is_empty() {
             // Escape and add literal components to the regex
             regex_string.push('/');
