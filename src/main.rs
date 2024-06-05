@@ -23,11 +23,7 @@ fn handle_echo(request: &Request, ctx: Option<&HashMap<String, String>>) -> Resp
         Method::Get(route) | Method::Post(route) | Method::Put(route) => route,
     };
 
-    if let Some(encoding) = request.get_tag("Accept-Encoding") {
-        if encoding.contains("gzip") {
-            headers.insert("Content-Encoding".to_string(), "gzip".to_string());
-        }
-    }
+    let mut body = vec![];
 
     for ch in route.chars().skip(1).skip_while(|&ch| ch != '/').skip(1) {
         echo_string.push(ch);
@@ -35,10 +31,35 @@ fn handle_echo(request: &Request, ctx: Option<&HashMap<String, String>>) -> Resp
     if echo_string.chars().last().unwrap() == '/' {
         echo_string.pop();
     }
-    let len = echo_string.len().to_string();
+
+    if let Some(encoding) = request.get_tag("Accept-Encoding") {
+        if encoding.contains("gzip") {
+            headers.insert("Content-Encoding".to_string(), "gzip".to_string());
+            match encode_gzip_string(echo_string.as_str()) {
+                Ok(encoded_bytes) => {
+                    println!("In succses");
+                    let len = encoded_bytes.len();
+                    body = encoded_bytes;
+                    headers.insert("Content-Length".to_string(), len.to_string());
+                }
+                Err(err) => {
+                    println!("In error {}", &echo_string);
+                    println!("Error: {err}");
+                }
+            }
+        } else {
+            let len = echo_string.len();
+            headers.insert("Content-Length".to_string(), len.to_string());
+            body = echo_string.as_bytes().to_owned();
+        }
+    } else {
+        let len = echo_string.len();
+        headers.insert("Content-Length".to_string(), len.to_string());
+        body = echo_string.as_bytes().to_owned();
+    }
+
     headers.insert("Content-Type".to_string(), "text/plain".to_string());
-    headers.insert("Content-Length".to_string(), len);
-    let body = echo_string;
+
     Response::new(
         "1.1".to_string(),
         StatusCode::Ok,
@@ -106,7 +127,7 @@ fn handle_files(request: &Request, ctx: Option<&HashMap<String, String>>) -> Res
                 "application/octet-stream".to_string(),
             );
             headers.insert("Content-Length".to_string(), bytes.len().to_string());
-            let body = String::from_utf8(bytes).unwrap();
+            let body = bytes;
             Response::new(
                 "1.1".to_string(),
                 StatusCode::Ok,
@@ -124,7 +145,7 @@ fn handle_user_agent(request: &Request, ctx: Option<&HashMap<String, String>>) -
         let len = user_agent.len().to_string();
         headers.insert("Content-Type".to_string(), "text/plain".to_string());
         headers.insert("Content-Length".to_string(), len);
-        let body = user_agent.to_string();
+        let body = user_agent.as_bytes().to_owned();
         Response::new(
             "1.1".to_string(),
             StatusCode::Ok,

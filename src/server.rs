@@ -6,6 +6,8 @@ use std::{
     net::{SocketAddr, TcpListener},
 };
 
+use nom::AsBytes;
+
 use crate::request::Request;
 use crate::router::Router;
 
@@ -40,7 +42,7 @@ impl Server {
                         println!("Request after parsing:\n{}", request_string);
                         dbg!(&request.method);
 
-                        let response: String = router.handle(&request, ctx).into();
+                        let response: Vec<u8> = router.handle(&request, ctx).into();
                         stream.write(response.as_bytes())
                     }
                     Err(_) => todo!(),

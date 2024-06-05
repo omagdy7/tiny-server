@@ -5,7 +5,7 @@ pub struct Response {
     version: String,
     status: StatusCode,
     headers: Option<Headers>,
-    body: Option<String>,
+    body: Option<Vec<u8>>,
 }
 
 impl Response {
@@ -13,7 +13,7 @@ impl Response {
         version: String,
         status: StatusCode,
         headers: Option<Headers>,
-        body: Option<String>,
+        body: Option<Vec<u8>>,
     ) -> Self {
         Response {
             version,
@@ -24,18 +24,25 @@ impl Response {
     }
 }
 
-impl Into<String> for Response {
-    fn into(self) -> String {
-        let status_line = format!("HTTP/{} {}", self.version, String::from(self.status));
+impl Into<Vec<u8>> for Response {
+    fn into(self) -> Vec<u8> {
+        let status_line = format!("HTTP/{} {}", self.version, String::from(self.status))
+            .as_bytes()
+            .to_owned();
         let headers = self
             .headers
             .unwrap_or(Headers(HashMap::new()))
             .0
             .iter()
             .map(|(key, value)| format!("{key}: {value}\r\n"))
-            .collect::<String>();
-        let body = self.body.unwrap_or("".to_string());
-        format!("{status_line}\r\n{headers}\r\n{body}")
+            .collect::<String>()
+            .as_bytes()
+            .to_owned();
+        let body = self.body.unwrap_or(vec![]);
+        let crlf = "\r\n".as_bytes().to_owned();
+        vec![status_line, crlf.clone(), headers, crlf.clone(), body]
+            .concat()
+            .to_owned()
     }
 }
 
@@ -74,12 +81,12 @@ impl Into<Response> for &str {
         };
 
         // Parse body
-        let body: Option<String> = {
+        let body: Option<Vec<u8>> = {
             let remaining_lines: Vec<&str> = lines.collect();
             if remaining_lines.is_empty() {
                 None
             } else {
-                Some(remaining_lines.join("\n"))
+                Some(remaining_lines.join("\n").as_bytes().to_owned())
             }
         };
 
