@@ -33,13 +33,11 @@ impl Router {
             Get(route) => {
                 let re = build_regex_from_path(&route);
                 let meth = Get(re.to_string());
-                dbg!(&meth);
                 self.routes.insert(meth, handler);
             }
             Post(route) => {
                 let re = build_regex_from_path(&route);
                 let meth = Post(re.to_string());
-                dbg!(&meth);
                 self.routes.insert(meth, handler);
             }
             Put(_) => todo!(),
@@ -55,7 +53,7 @@ impl Router {
                 for (method, handler) in self.routes() {
                     if let Get(method_string) = method {
                         let re = Regex::new(method_string).unwrap();
-                        dbg!(&re, request_method);
+                        // dbg!(&re, request_method);
                         if re.is_match(request_method) {
                             return handler(request, ctx);
                         }
@@ -67,7 +65,7 @@ impl Router {
                 for (method, handler) in self.routes() {
                     if let Post(method_string) = method {
                         let re = Regex::new(method_string).unwrap();
-                        dbg!(&re, request_method);
+                        // dbg!(&re, request_method);
                         if re.is_match(request_method) {
                             return handler(request, ctx);
                         }

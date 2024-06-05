@@ -5,42 +5,29 @@ use nom::AsBytes;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::str::Utf8Error;
 use std::sync::{Arc, Mutex};
 use std::{str, thread, usize};
 
 use http_server_starter_rust::request::*;
 use http_server_starter_rust::response::*;
+use http_server_starter_rust::server::*;
+use http_server_starter_rust::utils::*;
 use http_server_starter_rust::{extractor, http_types::*};
-
-fn save_bytes_to_file(bytes: &[u8], file_path: &str) -> io::Result<()> {
-    let mut file = File::create(file_path)?;
-    file.write_all(bytes)?;
-    Ok(())
-}
-
-fn read_file_as_bytes(path: &str) -> io::Result<Vec<u8>> {
-    // Open the file in read-only mode
-    let mut file = File::open(path)?;
-
-    // Create a buffer to hold the file contents
-    let mut buffer = Vec::new();
-
-    // Read the file contents into the buffer
-    file.read_to_end(&mut buffer)?;
-
-    // Return the buffer
-    Ok(buffer)
-}
 
 fn handle_echo(request: &Request, ctx: Option<&HashMap<String, String>>) -> Response {
     let mut headers = HashMap::new();
-    // Extract the route regardless of the variant
     let mut echo_string = "".to_string();
     let route = match request.method() {
         Method::Get(route) | Method::Post(route) | Method::Put(route) => route,
     };
+
+    if let Some(encoding) = request.get_tag("Accept-Encoding") {
+        if encoding.as_str() == "gzip" {
+            headers.insert("Content-Encoding".to_string(), "gzip".to_string());
+        }
+    }
 
     for ch in route.chars().skip(1).skip_while(|&ch| ch != '/').skip(1) {
         echo_string.push(ch);
@@ -79,8 +66,6 @@ fn handle_post_files(request: &Request, ctx: Option<&HashMap<String, String>>) -
     let len = file.len().to_string();
 
     let full_path = &(directory + &file);
-    println!("post_files");
-    dbg!(full_path);
     let bytes = request.body().as_ref().unwrap();
     let body = bytes.as_bytes();
 
@@ -112,8 +97,6 @@ fn handle_files(request: &Request, ctx: Option<&HashMap<String, String>>) -> Res
     let len = file.len().to_string();
 
     let full_path = &(directory + &file);
-    println!("handle_files");
-    dbg!(full_path);
 
     match read_file_as_bytes(full_path) {
         Ok(bytes) => {
@@ -137,18 +120,21 @@ fn handle_files(request: &Request, ctx: Option<&HashMap<String, String>>) -> Res
 
 fn handle_user_agent(request: &Request, ctx: Option<&HashMap<String, String>>) -> Response {
     let mut headers = HashMap::new();
-    let user_agent = request.get_tag("User-Agent".to_string());
-    let len = user_agent.len().to_string();
-    headers.insert("Content-Type".to_string(), "text/plain".to_string());
-    headers.insert("Content-Length".to_string(), len);
-    let body = user_agent.to_string();
-    Response::new(
-        "1.1".to_string(),
-        StatusCode::Ok,
-        Some(Headers(headers)),
-        Some(body),
-    )
-    .into()
+    if let Some(user_agent) = request.get_tag("User-Agent") {
+        let len = user_agent.len().to_string();
+        headers.insert("Content-Type".to_string(), "text/plain".to_string());
+        headers.insert("Content-Length".to_string(), len);
+        let body = user_agent.to_string();
+        Response::new(
+            "1.1".to_string(),
+            StatusCode::Ok,
+            Some(Headers(headers)),
+            Some(body),
+        )
+    } else {
+        println!("User-Agent isn't present in headers");
+        Response::new("1.1".to_string(), StatusCode::BadRequest, None, None)
+    }
 }
 
 fn handle_success(request: &Request, ctx: Option<&HashMap<String, String>>) -> Response {
@@ -159,49 +145,11 @@ fn handle_not_found(request: Request, ctx: Option<&HashMap<String, String>>) -> 
     Response::new("1.1".to_string(), StatusCode::NotFound, None, None).into()
 }
 
-fn serve(
-    mut stream: TcpStream,
-    router: Arc<Mutex<Router>>,
-    ctx: Arc<Mutex<HashMap<String, String>>>,
-) -> io::Result<usize> {
-    // Buffer to store the data received from the client
-    let mut buffer = [0; 512];
-
-    // Read data from the stream
-    match stream.read(&mut buffer) {
-        Ok(_) => {
-            // Convert buffer to a string and print the received data
-            match str::from_utf8(&buffer) {
-                Ok(request) => {
-                    use Method::*;
-                    println!("Received request:\n{}", request);
-                    let request_lines: Vec<&str> = request.split("\r\n").collect();
-                    dbg!(&request_lines);
-                    let request = Request::from(request_lines);
-                    let request_string: String = (&request).into();
-                    println!("body:\n{:?}", request.body());
-
-                    let response: String = {
-                        let router = router.lock().unwrap();
-                        let ctx = ctx.lock().unwrap();
-                        router.handle(&request, Some(&ctx)).into()
-                    };
-                    stream.write(response.as_bytes())
-                }
-                Err(_) => todo!(),
-            }
-        }
-        Err(_) => todo!(),
-    }
-}
-
 fn main() -> io::Result<()> {
     // Collect the command-line arguments
     let args: Vec<String> = std::env::args().collect();
 
     let mut dir = "".to_string();
-
-    let ctx = Arc::new(Mutex::new(HashMap::new()));
 
     // Check if the correct number of arguments are provided
     if args.len() == 3 {
@@ -212,43 +160,25 @@ fn main() -> io::Result<()> {
         } else {
             eprintln!("Unknown argument: {}", args[1]);
             eprintln!("Usage: {} --directory <path>", args[0]);
-            return Ok(());
         }
     } else {
         eprintln!("Usage: {} --directory <path>", args[0]);
     }
 
-    let listener = TcpListener::bind("127.0.0.1:4221").unwrap();
+    let mut router: Router = Router::new();
 
-    let router = Arc::new(Mutex::new(Router::new()));
-    ctx.lock().unwrap().insert("dir".to_string(), dir);
+    let mut ctx = HashMap::new();
+    dbg!(&dir);
+    ctx.insert("dir".to_string(), dir);
 
-    {
-        let mut router = router.lock().unwrap();
-        router
-            .route(get("/"), handle_success)
-            .route(get("/echo/:var/"), handle_echo)
-            .route(get("/user-agent/"), handle_user_agent)
-            .route(get("/files/:file/"), handle_files)
-            .route(post("/files/:file/"), handle_post_files);
-    }
+    router
+        .route(get("/"), handle_success)
+        .route(get("/echo/:var/"), handle_echo)
+        .route(get("/user-agent/"), handle_user_agent)
+        .route(get("/files/:file/"), handle_files)
+        .route(post("/files/:file/"), handle_post_files);
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                let router = Arc::clone(&router);
-                let ctx = Arc::clone(&ctx);
-                thread::spawn(move || {
-                    if let Err(e) = serve(stream, router, ctx) {
-                        eprintln!("Failed to serve connection: {}", e);
-                    }
-                });
-            }
-            Err(e) => {
-                eprintln!("error: {}", e);
-            }
-        }
-    }
-
-    Ok(())
+    let socket = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 4221);
+    let app = Server::new(socket);
+    app.serve(&router, Some(&ctx))
 }

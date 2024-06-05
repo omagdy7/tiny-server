@@ -24,8 +24,8 @@ impl Request {
         }
     }
 
-    pub fn get_tag(&self, key: String) -> String {
-        self.headers.as_ref().unwrap().0.get(&key).unwrap().clone()
+    pub fn get_tag(&self, key: &str) -> Option<&String> {
+        self.headers.as_ref().unwrap().0.get(&key.to_string())
     }
 
     pub fn method(&self) -> &Method {
@@ -48,7 +48,6 @@ impl From<Vec<&str>> for Request {
                 let (method, headers, body) =
                     (Method::from(*request_line), Headers::from(headers), body);
                 if let Some(content_length) = headers.0.get("Content-Length") {
-                    println!("Well hello there");
                     let content_length = content_length
                         .parse::<usize>()
                         .expect("Content-Length should be parsable to usize");
