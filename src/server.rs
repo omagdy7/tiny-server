@@ -40,7 +40,7 @@ impl Server {
                         let request_string: String = (&request).into();
 
                         println!("Request after parsing:\n{}", request_string);
-                        dbg!(&request.method);
+                        dbg!(&request.endpoint);
 
                         let response: Vec<u8> = router.handle(&request, ctx).into();
                         stream.write(response.as_bytes())

@@ -4,13 +4,13 @@ use crate::http_types::*;
 
 #[derive(Debug, Clone)]
 pub struct Request {
-    pub method: Method,
+    pub endpoint: Endpoint,
     pub headers: Option<Headers>,
     body: Option<String>,
 }
 
 impl Request {
-    fn new(method: Method, headers: Headers, body: String) -> Self {
+    fn new(method: Endpoint, headers: Headers, body: String) -> Self {
         let headers = if headers.0.len() == 0 {
             None
         } else {
@@ -18,7 +18,7 @@ impl Request {
         };
         let body = if body.is_empty() { None } else { Some(body) };
         Request {
-            method,
+            endpoint: method,
             headers,
             body,
         }
@@ -28,8 +28,8 @@ impl Request {
         self.headers.as_ref().unwrap().0.get(&key.to_string())
     }
 
-    pub fn method(&self) -> &Method {
-        &self.method
+    pub fn endpoint(&self) -> &Endpoint {
+        &self.endpoint
     }
 
     pub fn headers(&self) -> &Option<Headers> {
@@ -46,7 +46,7 @@ impl From<Vec<&str>> for Request {
         match &value[..] {
             [request_line, headers @ .., body] => {
                 let (method, headers, body) =
-                    (Method::from(*request_line), Headers::from(headers), body);
+                    (Endpoint::from(*request_line), Headers::from(headers), body);
                 if let Some(content_length) = headers.0.get("Content-Length") {
                     let content_length = content_length
                         .parse::<usize>()
@@ -65,7 +65,7 @@ impl From<Vec<&str>> for Request {
 
 impl<'a> Into<String> for Request {
     fn into(self) -> String {
-        let method = String::from(self.method);
+        let method = String::from(self.endpoint);
         let (method, endpoint) = method.split_once(" ").unwrap();
         let status_line = format!("{} {} HTTP/1.1", method, endpoint);
         let headers = self
@@ -82,7 +82,7 @@ impl<'a> Into<String> for Request {
 
 impl Into<String> for &Request {
     fn into(self) -> String {
-        let method = String::from(self.method.clone());
+        let method = String::from(self.endpoint.clone());
         let (method, endpoint) = method.split_once(" ").unwrap();
         let status_line = format!("{} {} HTTP/1.1", method, endpoint);
         let headers = self

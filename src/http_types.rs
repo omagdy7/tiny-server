@@ -15,21 +15,48 @@ type Route = String;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Method {
-    Get(Route),
-    Post(Route),
-    Put(Route),
+    GET,
+    POST,
+    PUT,
 }
 
-pub fn get(route: &str) -> Method {
-    Method::Get(route.to_string())
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct Endpoint {
+    pub method: Method,
+    pub route: Route,
 }
 
-pub fn post(route: &str) -> Method {
-    Method::Post(route.to_string())
+impl Endpoint {
+    fn get(route: &str) -> Self {
+        Self {
+            method: Method::GET,
+            route: route.to_string(),
+        }
+    }
+    fn post(route: &str) -> Self {
+        Self {
+            method: Method::POST,
+            route: route.to_string(),
+        }
+    }
+    fn put(route: &str) -> Self {
+        Self {
+            method: Method::PUT,
+            route: route.to_string(),
+        }
+    }
 }
 
-pub fn put(route: &str) -> Method {
-    Method::Put(route.to_string())
+pub fn get(route: &str) -> Endpoint {
+    Endpoint::get(route)
+}
+
+pub fn post(route: &str) -> Endpoint {
+    Endpoint::post(route)
+}
+
+pub fn put(route: &str) -> Endpoint {
+    Endpoint::put(route)
 }
 
 impl From<StatusCode> for String {
@@ -44,23 +71,23 @@ impl From<StatusCode> for String {
     }
 }
 
-impl From<Method> for String {
-    fn from(val: Method) -> Self {
-        use Method::*;
-        match val {
-            Get(route) => "GET ".to_string() + &route,
-            Post(route) => "POST ".to_string() + &route,
-            Put(route) => "PUT ".to_string() + &route,
+impl From<Endpoint> for String {
+    fn from(val: Endpoint) -> Self {
+        use Method as M;
+        match (val.method, val.route) {
+            (M::GET, route) => "GET ".to_string() + &route,
+            (M::POST, route) => "GET ".to_string() + &route,
+            (M::PUT, route) => "GET ".to_string() + &route,
         }
     }
 }
-impl From<&Method> for String {
-    fn from(val: &Method) -> Self {
-        use Method::*;
-        match val {
-            Get(route) => "GET ".to_string() + &route,
-            Post(route) => "POST ".to_string() + &route,
-            Put(route) => "PUT ".to_string() + &route,
+impl From<&Endpoint> for String {
+    fn from(val: &Endpoint) -> Self {
+        use Method as M;
+        match (&val.method, &val.route) {
+            (M::GET, route) => "GET ".to_string() + &route,
+            (M::POST, route) => "GET ".to_string() + &route,
+            (M::PUT, route) => "GET ".to_string() + &route,
         }
     }
 }
@@ -94,14 +121,13 @@ impl From<&[&str]> for Headers {
     }
 }
 
-impl From<String> for Method {
+impl From<String> for Endpoint {
     fn from(val: String) -> Self {
-        use Method::*;
         let request_line = val.split(' ').collect_vec();
         let (method, route) = (request_line[0], request_line[1]);
         match method {
-            "GET" => Get(route.to_string()),
-            "POST" => Post(route.to_string()),
+            "GET" => Endpoint::get(route),
+            "POST" => Endpoint::post(route),
             _ => {
                 eprintln!("{method} Not Supported Yet");
                 unreachable!()
@@ -109,14 +135,13 @@ impl From<String> for Method {
         }
     }
 }
-impl From<&str> for Method {
+impl From<&str> for Endpoint {
     fn from(val: &str) -> Self {
-        use Method::*;
         let request_line = val.split(' ').collect_vec();
         let (method, route) = (request_line[0], request_line[1]);
         match method {
-            "GET" => Get(route.to_string()),
-            "POST" => Post(route.to_string()),
+            "GET" => Endpoint::get(route),
+            "POST" => Endpoint::post(route),
             _ => {
                 eprintln!("{method} Not Supported Yet");
                 unreachable!()
