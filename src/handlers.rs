@@ -97,17 +97,17 @@ pub fn handle_files(request: &Request, ctx: Option<&HashMap<String, String>>) ->
     if file.chars().last().unwrap() == '/' {
         file.pop();
     }
-    let len = file.len().to_string();
 
     let full_path = &(directory + &file);
 
     match read_file_as_bytes(full_path) {
         Ok(bytes) => {
             let mut headers = HashMap::new();
-            headers.insert(
-                "Content-Type".to_string(),
-                "application/octet-stream".to_string(),
-            );
+            headers.insert("Content-Type".to_string(), "text/html".to_string());
+            // headers.insert(
+            //     "Content-Type".to_string(),
+            //     "application/octet-stream".to_string(),
+            // );
             headers.insert("Content-Length".to_string(), bytes.len().to_string());
             let body = bytes;
             Response::new(
