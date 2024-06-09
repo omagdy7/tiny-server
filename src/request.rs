@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::http_types::*;
+use crate::http::*;
 
 #[derive(Debug, Clone)]
 pub struct Request {

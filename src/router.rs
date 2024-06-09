@@ -1,6 +1,6 @@
 use crate::{
     extractor::build_regex_from_path,
-    http_types::{get, post, put, Endpoint, Method, StatusCode},
+    http::{get, post, put, Endpoint, Method, StatusCode},
     request::Request,
     response::Response,
 };

@@ -1,4 +1,4 @@
-use crate::http_types::*;
+use crate::http::*;
 use crate::request::*;
 use crate::response::*;
 use crate::utils::*;

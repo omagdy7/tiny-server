@@ -1,5 +1,5 @@
 use http_server_starter_rust::handlers::*;
-use http_server_starter_rust::http_types::{get, post};
+use http_server_starter_rust::http::{get, post};
 use http_server_starter_rust::router::Router;
 use http_server_starter_rust::server::*;
 use std::collections::HashMap;

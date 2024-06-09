@@ -1,4 +1,4 @@
-use crate::http_types::*;
+use crate::http::*;
 use std::collections::HashMap;
 
 pub struct Response {
