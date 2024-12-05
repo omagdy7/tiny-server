@@ -127,22 +127,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "443144c8cdadd93ebf52ddb4056d257f5b52c04d3c804e657d19eb73fc33668b"
 
 [[package]]
-name = "http-server-starter-rust"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "base64",
- "bytes",
- "flate2",
- "itertools",
- "nom",
- "pretty_assertions",
- "regex",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "itertools"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -400,6 +384,22 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.48",
+]
+
+[[package]]
+name = "tiny-server"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "bytes",
+ "flate2",
+ "itertools",
+ "nom",
+ "pretty_assertions",
+ "regex",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]

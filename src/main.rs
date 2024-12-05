@@ -1,10 +1,10 @@
-use http_server_starter_rust::handlers::*;
-use http_server_starter_rust::http::{get, post};
-use http_server_starter_rust::router::Router;
-use http_server_starter_rust::server::*;
 use std::collections::HashMap;
 use std::io::{self};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use tiny_server::handlers::*;
+use tiny_server::http::{get, post};
+use tiny_server::router::Router;
+use tiny_server::server::*;
 
 fn main() -> io::Result<()> {
     // Collect the command-line arguments
